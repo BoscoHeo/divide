@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
+import { MATH_POOL, MathQuestion } from './mathPool';
 import { 
   Swords, 
   Heart, 
@@ -186,845 +187,7 @@ const SIGNAL_TO_POSE_KEY: Record<number, string> = {
   3: 'RAISE_ARMS'
 };
 
-// Math question schema (with trap values)
-interface MathQuestion {
-  question: string;
-  dividend: string; // Left hand
-  divisor: string;  // Right hand
-  correctAnswer: number;
-  choices: number[];
-  type: 'COMMON' | 'ELITE' | 'BOSS';
-  explanationSteps: {
-    step1Inverse: string; // 소수점 이동 전 원소 꼴
-    step2Move: string;    // 소수점 몇 칸 이동 설명
-    step3Result: string;  // 계산 완료 단계
-    dividendOriginal: string;
-    divisorOriginal: string;
-    dividendShifted: string;
-    divisorShifted: string;
-    shiftAmount: number;
-  };
-}
-
-// Fixed database of highly conceptual educational division problems with TRAP answers
-const MATH_POOL: Record<'COMMON' | 'ELITE' | 'BOSS', MathQuestion[]> = {
-  COMMON: [
-    {
-      question: "2.4 ÷ 4",
-      dividend: "2.4",
-      divisor: "4",
-      correctAnswer: 0.6,
-      choices: [0.6, 6, 0.06, 60],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 수(4)가 자연수이므로 소수점을 이동하지 않습니다.",
-        step2Move: "나누어지는 소수 첫째 자리에 그대로 맞추어 몫의 소수점을 찍습니다.",
-        step3Result: "24 ÷ 4 = 6 이므로 소수점을 반영해 0.6이 완성됩니다.",
-        dividendOriginal: "2.4",
-        divisorOriginal: "4",
-        dividendShifted: "2.4",
-        divisorShifted: "4",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "0.8 ÷ 2",
-      dividend: "0.8",
-      divisor: "2",
-      correctAnswer: 0.4,
-      choices: [0.4, 4, 0.04, 40],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 수(2)가 자연수이므로 자릿수 흔들림이 없습니다.",
-        step2Move: "소수점의 자리(첫째 자리)를 그대로 지키며 위로 올립니다.",
-        step3Result: "8 ÷ 2 = 4 이므로 몫 자리를 수호하면 0.4가 됩니다.",
-        dividendOriginal: "0.8",
-        divisorOriginal: "2",
-        dividendShifted: "0.8",
-        divisorShifted: "2",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "3.6 ÷ 9",
-      dividend: "3.6",
-      divisor: "9",
-      correctAnswer: 0.4,
-      choices: [0.4, 4, 0.04, 40],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "자연수 9로 3.6을 바로 공략합니다.",
-        step2Move: "소수점을 그대로 올려 고정해주어야 오폭을 피합니다.",
-        step3Result: "36 ÷ 9 = 4에서 소수 첫째 자리를 가산하여 0.4가 도출됩니다.",
-        dividendOriginal: "3.6",
-        divisorOriginal: "9",
-        dividendShifted: "3.6",
-        divisorShifted: "9",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "4.2 ÷ 6",
-      dividend: "4.2",
-      divisor: "6",
-      correctAnswer: 0.7,
-      choices: [0.7, 7, 0.07, 70],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 수 6이 자연수이므로 소수점 위치를 그대로 올립니다.",
-        step2Move: "소수 첫째 자리에 소수점을 콕 찍어 배치합니다.",
-        step3Result: "42 ÷ 6 = 7에 맞물려 정밀값 0.7이 복구됩니다.",
-        dividendOriginal: "4.2",
-        divisorOriginal: "6",
-        dividendShifted: "4.2",
-        divisorShifted: "6",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "5.6 ÷ 8",
-      dividend: "5.6",
-      divisor: "8",
-      correctAnswer: 0.7,
-      choices: [0.7, 7, 0.07, 70],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 자연수가 8이므로 따로 소수점을 비행시키지 않습니다.",
-        step2Move: "자연수 연산과 지켜질 소수 자릿수를 등가 정렬합니다.",
-        step3Result: "56 ÷ 8 = 7이므로 정답 마력 값은 0.7이 결정됩니다.",
-        dividendOriginal: "5.6",
-        divisorOriginal: "8",
-        dividendShifted: "5.6",
-        divisorShifted: "8",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "1.5 ÷ 3",
-      dividend: "1.5",
-      divisor: "3",
-      correctAnswer: 0.5,
-      choices: [0.5, 5, 0.05, 50],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 수 3은 완벽한 자연수 상태입니다.",
-        step2Move: "1.5의 소수점 자리를 그대로 상층부로 인상합니다.",
-        step3Result: "15 ÷ 3 = 5 이므로 소수 첫째 자리를 맞춰 0.5가 산출됩니다.",
-        dividendOriginal: "1.5",
-        divisorOriginal: "3",
-        dividendShifted: "1.5",
-        divisorShifted: "3",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "0.64 ÷ 8",
-      dividend: "0.64",
-      divisor: "8",
-      correctAnswer: 0.08,
-      choices: [0.08, 0.8, 8, 80],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 수 8에 맞춤해 자릿수 이동은 가동하지 않습니다.",
-        step2Move: "일의 자리가 비어 정수 파트는 0이 올라갑니다. 소수 둘째 자리에 그대로 안착합니다.",
-        step3Result: "64 ÷ 8 = 8에서 몫의 위치에 맞춰 0.08로 정수가 결성됩니다.",
-        dividendOriginal: "0.64",
-        divisorOriginal: "8",
-        dividendShifted: "0.64",
-        divisorShifted: "8",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "7.2 ÷ 12",
-      dividend: "7.2",
-      divisor: "12",
-      correctAnswer: 0.6,
-      choices: [0.6, 6, 0.06, 60],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "두 자릿수 자연수 12로 7.2를 안전히 돌파합니다.",
-        step2Move: "나누어지는 소수의 정수 눈금을 맞추어 소수점을 올립니다.",
-        step3Result: "72 ÷ 12 = 6 이므로 소수 자릿수가 반영된 0.6이 연성 완성됩니다.",
-        dividendOriginal: "7.2",
-        divisorOriginal: "12",
-        dividendShifted: "7.2",
-        divisorShifted: "12",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "9.1 ÷ 7",
-      dividend: "9.1",
-      divisor: "7",
-      correctAnswer: 1.3,
-      choices: [1.3, 13, 0.13, 130],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "이미 정제된 자연수 7이므로 소수점을 임의 기동하지 않습니다.",
-        step2Move: "일의자리에 1번 들어가고 소수 첫째 자리로 이동하게 됩니다.",
-        step3Result: "91 ÷ 7 = 13 이 되므로 계통 눈금을 수호하면 1.3이 성립됩니다.",
-        dividendOriginal: "9.1",
-        divisorOriginal: "7",
-        dividendShifted: "9.1",
-        divisorShifted: "7",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "8.4 ÷ 4",
-      dividend: "8.4",
-      divisor: "4",
-      correctAnswer: 2.1,
-      choices: [2.1, 21, 0.21, 210],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 수 4 상태에서 그대로 연산에 착수합니다.",
-        step2Move: "8.4의 소수점을 보존한 채 일의 자리와 소수 첫째 자리를 순차 나눕니다.",
-        step3Result: "84 ÷ 4 = 21 이므로, 정밀 소수 눈금 2.1이 정확하게 발현됩니다.",
-        dividendOriginal: "8.4",
-        divisorOriginal: "4",
-        dividendShifted: "8.4",
-        divisorShifted: "4",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "1.44 ÷ 12",
-      dividend: "1.44",
-      divisor: "12",
-      correctAnswer: 0.12,
-      choices: [0.12, 1.2, 12, 0.012],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "12는 자연수이며, 소수점 위치를 그대로 전수합니다.",
-        step2Move: "일의 자리에는 빈 장막(0)을 친 다음, 소수 둘째 자리까지 소수점을 정렬합니다.",
-        step3Result: "144 ÷ 12 = 12 에 따라 소천 지수를 맞추면 0.12으로 보호됩니다.",
-        dividendOriginal: "1.44",
-        divisorOriginal: "12",
-        dividendShifted: "1.44",
-        divisorShifted: "12",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "0.25 ÷ 5",
-      dividend: "0.25",
-      divisor: "5",
-      correctAnswer: 0.05,
-      choices: [0.05, 0.5, 5, 50],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "기준 자연수가 5이므로 자릿수 이동 없이 곧장 공습을 설계합니다.",
-        step2Move: "소수 첫째 자리에 5가 나뉘지 않으므로 그 자리에 0을 기입하고 소수 둘째 자리에 값을 얹습니다.",
-        step3Result: "25 ÷ 5 = 5 이고 적격 소수 배치로 0.05이 완전 충전됩니다.",
-        dividendOriginal: "0.25",
-        divisorOriginal: "5",
-        dividendShifted: "0.25",
-        divisorShifted: "5",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "4.8 ÷ 8",
-      dividend: "4.8",
-      divisor: "8",
-      correctAnswer: 0.6,
-      choices: [0.6, 6, 0.06, 60],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 수 8을 향해 소수점을 제자리에 안전 전개합니다.",
-        step2Move: "정수 일의자리가 비므로 0. 을 작성한 후 소수 첫째 자리를 점령합니다.",
-        step3Result: "48 ÷ 8 = 6 의 관계에서 정답은 오차가 없는 0.6이 산식 구축됩니다.",
-        dividendOriginal: "4.8",
-        divisorOriginal: "8",
-        dividendShifted: "4.8",
-        divisorShifted: "8",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "6.3 ÷ 7",
-      dividend: "6.3",
-      divisor: "7",
-      correctAnswer: 0.9,
-      choices: [0.9, 9, 0.09, 90],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "나누는 정수가 7인 완벽한 신전 기초 단계입니다.",
-        step2Move: "6에는 7이 들어갈 수 없으므로 0을 올린 뒤 소수점을 상방 이동합니다.",
-        step3Result: "63 ÷ 7 = 9 원리를 맞춰 0.9 자율 해법이 확립됩니다.",
-        dividendOriginal: "6.3",
-        divisorOriginal: "7",
-        dividendShifted: "6.3",
-        divisorShifted: "7",
-        shiftAmount: 0
-      }
-    },
-    {
-      question: "10.5 ÷ 5",
-      dividend: "10.5",
-      divisor: "5",
-      correctAnswer: 2.1,
-      choices: [2.1, 21, 0.21, 210],
-      type: 'COMMON',
-      explanationSteps: {
-        step1Inverse: "단정히 자연수 5로 나누는 쉬운 정수 복합 소수 산식입니다.",
-        step2Move: "10을 5로 우선 공략해 2를 얻고, 소수 첫째 자리의 5를 공략해 1을 전가합니다.",
-        step3Result: "105 ÷ 5 = 21 로직에 따라 자릿수 일치를 시켜 2.1을 형성합니다.",
-        dividendOriginal: "10.5",
-        divisorOriginal: "5",
-        dividendShifted: "10.5",
-        divisorShifted: "5",
-        shiftAmount: 0
-      }
-    }
-  ],
-  ELITE: [
-    {
-      question: "3.5 ÷ 0.7",
-      dividend: "3.5",
-      divisor: "0.7",
-      correctAnswer: 5,
-      choices: [5, 0.5, 50, 0.05],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수(0.7)를 자연수로 바꾸기 위해 소수점을 오른쪽으로 1칸 이동합니다.",
-        step2Move: "나누어지는 수(3.5)도 똑같이 우측으로 1칸 강제 연동합니다.",
-        step3Result: "식이 35 ÷ 7 로 깔끔하게 자연수 상태가 되므로 정답은 5입니다.",
-        dividendOriginal: "3.5",
-        divisorOriginal: "0.7",
-        dividendShifted: "35",
-        divisorShifted: "7",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "4.8 ÷ 1.2",
-      dividend: "4.8",
-      divisor: "1.2",
-      correctAnswer: 4,
-      choices: [4, 0.4, 40, 0.04],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수 1.2가 자연수가 되려면 소수점을 우측으로 1칸 비행시켜야 합니다.",
-        step2Move: "결합 작용으로 4.8의 소수점도 동시 1칸 이동되어 48이 됩니다.",
-        step3Result: "최종 마법 형태인 48 ÷ 12 를 통과하면 자연수 4가 복원됩니다.",
-        dividendOriginal: "4.8",
-        divisorOriginal: "1.2",
-        dividendShifted: "48",
-        divisorShifted: "12",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.45 ÷ 0.05",
-      dividend: "0.45",
-      divisor: "0.05",
-      correctAnswer: 9,
-      choices: [9, 0.9, 90, 0.09],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수 0.05의 소수점을 우측으로 두 칸(2칸) 고속 비행시킵니다.",
-        step2Move: "나누어지는 수 0.45 또한 결합 법칙에 따라 우측 2칸 연동해 45가 됩니다.",
-        step3Result: "궁극의 변환 식인 45 ÷ 5에 맞춰 몫은 9로 수호됩니다.",
-        dividendOriginal: "0.45",
-        divisorOriginal: "0.05",
-        dividendShifted: "45",
-        divisorShifted: "5",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "6.4 ÷ 0.8",
-      dividend: "6.4",
-      divisor: "0.8",
-      correctAnswer: 8,
-      choices: [8, 0.8, 80, 0.08],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수 0.8을 자연수로 개편하기 위해 오른쪽으로 단 1칸 연성합니다.",
-        step2Move: "나누어지는 수 6.4의 자릿 장막 또한 동일 폭(1칸) 고속 복구시켜 64가 구성됩니다.",
-        step3Result: "결합 작용식 64 ÷ 8을 수행하여 정답 8을 완전 캐스팅 완료합니다.",
-        dividendOriginal: "6.4",
-        divisorOriginal: "0.8",
-        dividendShifted: "64",
-        divisorShifted: "8",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "2.7 ÷ 0.9",
-      dividend: "2.7",
-      divisor: "0.9",
-      correctAnswer: 3,
-      choices: [3, 0.3, 30, 0.03],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수 0.9를 향해 소수점 오른쪽 이동 마법(1칸)을 격발합니다.",
-        step2Move: "2.7 또한 수호 연계를 타고 우측으로 1칸 도약하여 27을 구현합니다.",
-        step3Result: "조립 수식 27 ÷ 9가 성립되어 정답 정수치 3에 낙착됩니다.",
-        dividendOriginal: "2.7",
-        divisorOriginal: "0.9",
-        dividendShifted: "27",
-        divisorShifted: "9",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "1.4 ÷ 0.2",
-      dividend: "1.4",
-      divisor: "0.2",
-      correctAnswer: 7,
-      choices: [7, 0.7, 70, 0.07],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 분수격 영핵 0.2를 조율하기 위해 오른쪽 방향 1칸 소수점이 연계 이동합니다.",
-        step2Move: "마도의 결로 1.4도 무결히 동조하여 오른쪽으로 1칸 이정표를 밀쳐 14에 도래합니다.",
-        step3Result: "실시간 연산식인 14 ÷ 2에 충실히 귀결되어 성스러운 몫 7이 복귀됩니다.",
-        dividendOriginal: "1.4",
-        divisorOriginal: "0.2",
-        dividendShifted: "14",
-        divisorShifted: "2",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.72 ÷ 0.09",
-      dividend: "0.72",
-      divisor: "0.09",
-      correctAnswer: 8,
-      choices: [8, 0.8, 80, 0.08],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수 0.09는 소수 둘째 자리 정밀체이므로 2칸 오른쪽 평행 이동이 요구됩니다.",
-        step2Move: "이에 반응해 0.72 지수 또한 조화롭게 2칸 우향 전동해 72의 물리체를 인격합니다.",
-        step3Result: "전개 수식 72 ÷ 9 에 준하여 파쇄적인 보정 상수로 8이 확정됩니다.",
-        dividendOriginal: "0.72",
-        divisorOriginal: "0.09",
-        dividendShifted: "72",
-        divisorShifted: "9",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "0.56 ÷ 0.08",
-      dividend: "0.56",
-      divisor: "0.08",
-      correctAnswer: 7,
-      choices: [7, 0.7, 70, 0.07],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 미지수 0.08을 향해 보정계수 100을 배가(2칸 이동)해줍니다.",
-        step2Move: "0.56 측에도 정량으로 등가 가산(2칸 우향 복구) 하여 56으로 재성합니다.",
-        step3Result: "56 ÷ 8 은 수학 고유 영역에서 정확히 자연수 7을 영출합니다.",
-        dividendOriginal: "0.56",
-        divisorOriginal: "0.08",
-        dividendShifted: "56",
-        divisorShifted: "8",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "7.5 ÷ 1.5",
-      dividend: "7.5",
-      divisor: "1.5",
-      correctAnswer: 5,
-      choices: [5, 0.5, 50, 0.05],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 정체 1.5의 불균형을 소멸하고자 오른쪽으로 1칸 밀어줍니다.",
-        step2Move: "대칭적 우주 원리에 따라 7.5 또한 1칸 우향 순조 이동되어 75에 달합니다.",
-        step3Result: "75 ÷ 15 = 5 이므로 궤도 안정을 확보하며 75 ÷ 15가 기동해 승리 숫자 5를 방사합니다.",
-        dividendOriginal: "7.5",
-        divisorOriginal: "1.5",
-        dividendShifted: "75",
-        divisorShifted: "15",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "12.5 ÷ 2.5",
-      dividend: "12.5",
-      divisor: "2.5",
-      correctAnswer: 5,
-      choices: [5, 0.5, 50, 0.05],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수 2.5의 자연수 회귀를 목표로 소수점을 우측 방향 1눈금(1칸) 밀어줍니다.",
-        step2Move: "전략적 정렬로 12.5 역시 1눈금 비행 이동하여 125 상태에 안개 조율됩니다.",
-        step3Result: "인과식 125 ÷ 25를전개하여 완전 정밀 정수 5를 결합해 냅니다.",
-        dividendOriginal: "12.5",
-        divisorOriginal: "2.5",
-        dividendShifted: "125",
-        divisorShifted: "25",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "9.6 ÷ 1.6",
-      dividend: "9.6",
-      divisor: "1.6",
-      correctAnswer: 6,
-      choices: [6, 0.6, 60, 0.06],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "소수 첫째 자리 핵 1.6을 정교히 오른쪽 1칸 전각 수동 조율합니다.",
-        step2Move: "결계 보호로 9.6 또한 오른쪽 1칸 평행 가동되어 96을 투영합니다.",
-        step3Result: "변환 수식 96 ÷ 16 을 타격하면, 몫이 깨끗하게 6으로 환원 정리됩니다.",
-        dividendOriginal: "9.6",
-        divisorOriginal: "1.6",
-        dividendShifted: "96",
-        divisorShifted: "16",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.81 ÷ 0.09",
-      dividend: "0.81",
-      divisor: "0.09",
-      correctAnswer: 9,
-      choices: [9, 0.9, 90, 0.09],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 수 0.09에 대칭력을 가해 소수점을 오른쪽으로 두 칸 전방 배치합니다.",
-        step2Move: "분열력으로 0.81 소수점 역시 똑같이 두 칸 우측 기동되어 실체 81이 구성됩니다.",
-        step3Result: "81 ÷ 9 = 9 이므로 완결 수치 9가 강력 수립됩니다.",
-        dividendOriginal: "0.81",
-        divisorOriginal: "0.09",
-        dividendShifted: "81",
-        divisorShifted: "9",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "0.24 ÷ 0.03",
-      dividend: "0.24",
-      divisor: "0.03",
-      correctAnswer: 8,
-      choices: [8, 0.8, 80, 0.08],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 소수 0.03의 장벽을 위해 100배율 소수점 우향 2칸 점프합니다.",
-        step2Move: "동조 반응 속도에 결부하여 0.24 또한 우향 2칸 점프해 24 형태가 성형됩니다.",
-        step3Result: "최적 변천식 24 ÷ 3에 맞춰 정답 상수 8이 완수 회수됩니다.",
-        dividendOriginal: "0.24",
-        divisorOriginal: "0.03",
-        dividendShifted: "24",
-        divisorShifted: "3",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "10.8 ÷ 1.2",
-      dividend: "10.8",
-      divisor: "1.2",
-      correctAnswer: 9,
-      choices: [9, 0.9, 90, 0.09],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "나누는 소수점 핵 1.2를 자연화하도록 소수점을 1클릭 우향 조정합니다.",
-        step2Move: "10.8에도 전동 장치가 연동 실행되어 똑같이 1눈금 우향해 108에 도달합니다.",
-        step3Result: "108 ÷ 12 연산을 실행하여, 기수 9를 소환 완수합니다.",
-        dividendOriginal: "10.8",
-        divisorOriginal: "1.2",
-        dividendShifted: "108",
-        divisorShifted: "12",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.36 ÷ 0.04",
-      dividend: "0.36",
-      divisor: "0.04",
-      correctAnswer: 9,
-      choices: [9, 0.9, 90, 0.09],
-      type: 'ELITE',
-      explanationSteps: {
-        step1Inverse: "마도 소수 0.04의 전하 자리를 우향 2선 이동 결집시킵니다.",
-        step2Move: "결합으로 0.36도 똑같이 우향 2선 연계 이동하여 수치 36을 회선시킵니다.",
-        step3Result: "36 ÷ 4 마도 공습을 펼쳐 정량 치수인 9를 추출해 냅니다.",
-        dividendOriginal: "0.36",
-        divisorOriginal: "0.04",
-        dividendShifted: "36",
-        divisorShifted: "4",
-        shiftAmount: 2
-      }
-    }
-  ],
-  BOSS: [
-    {
-      question: "0.48 ÷ 0.6",
-      dividend: "0.48",
-      divisor: "0.6",
-      correctAnswer: 0.8,
-      choices: [0.8, 8, 0.08, 80],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "극도 경계! 나누는 수인 0.6을 자연수로 바꾸기 위해 우측으로 단 '1칸'만 이동합니다.",
-        step2Move: "나누어지는 수인 0.48도 반드시 똑같이 우측으로 '1칸'만 연계하여 4.8로 만들어야 합니다.",
-        step3Result: "결과적으로 식은 4.8 ÷ 6 이 되므로, 48 ÷ 6 = 8 에서 소수를 반영한 0.8이 핵심 정답입니다.",
-        dividendOriginal: "0.48",
-        divisorOriginal: "0.6",
-        dividendShifted: "4.8",
-        divisorShifted: "6",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.35 ÷ 0.5",
-      dividend: "0.35",
-      divisor: "0.5",
-      correctAnswer: 0.7,
-      choices: [0.7, 7, 0.07, 70],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나누는 수 0.5를 자연수로 세팅하는 데 소수점 1칸 이동이 요구됩니다.",
-        step2Move: "0.35 역시 소수점을 1칸만 무브하여 3.5를 확보합니다.",
-        step3Result: "3.5 ÷ 5 상태에서 나 연산을 수행하면 몫은 정밀하게 0.7이 도달합니다.",
-        dividendOriginal: "0.35",
-        divisorOriginal: "0.5",
-        dividendShifted: "3.5",
-        divisorShifted: "5",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.072 ÷ 0.08",
-      dividend: "0.072",
-      divisor: "0.08",
-      correctAnswer: 0.9,
-      choices: [0.9, 9, 0.09, 90],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나누는 수 0.08을 자연수로 바꾸기 위해 우측으로 2칸 전격 이동합니다.",
-        step2Move: "나누어지는 수 0.072 또한 우측으로 2칸 연계 비스트 이동하여 7.2가 성립됩니다.",
-        step3Result: "최종 마도 수식 7.2 ÷ 8 을 돌파하면 소수 첫째 자리에 소수가 걸치며 0.9가 도출됩니다.",
-        dividendOriginal: "0.072",
-        divisorOriginal: "0.08",
-        dividendShifted: "7.2",
-        divisorShifted: "8",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "4 ÷ 0.8",
-      dividend: "4",
-      divisor: "0.8",
-      correctAnswer: 5,
-      choices: [5, 0.5, 50, 0.05],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "경고! 자연수를 소수로 나눕니다. 나누는 수 0.8의 소수점을 우측으로 1칸 이동시킵니다.",
-        step2Move: "나누어지는 자연수 '4'는 사실상 4.0이므로 똑같이 1칸 이동하여 40이 연합 형성됩니다.",
-        step3Result: "40 ÷ 8 의 산술식으로 완벽 환원되어 정수 몫 5가 돌파 정답이 됩니다.",
-        dividendOriginal: "4",
-        divisorOriginal: "0.8",
-        dividendShifted: "40",
-        divisorShifted: "8",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "6 ÷ 1.5",
-      dividend: "6",
-      divisor: "1.5",
-      correctAnswer: 4,
-      choices: [4, 0.4, 40, 0.04],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나누는 축 1.5를 1칸 우향 평행 이동하여 자연수 15로 쾌조 변경합니다.",
-        step2Move: "자연수 본체 6도 동일배율(1칸 이동)에 영향받아 0이 더해지며 60의 결합체가 도출됩니다.",
-        step3Result: "60 ÷ 15 마도공 격차에서 딱 떨어지는 정수값인 4를 가시화해 냅니다.",
-        dividendOriginal: "6",
-        divisorOriginal: "1.5",
-        dividendShifted: "60",
-        divisorShifted: "15",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "2.4 ÷ 0.06",
-      dividend: "2.4",
-      divisor: "0.06",
-      correctAnswer: 40,
-      choices: [40, 4, 0.4, 400],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "자율 지수가 다릅니다! 나누는 수 0.06을 위해 보폭 2칸 수직 우향 전개합니다.",
-        step2Move: "나누어지는수 2.4도 동일하게 2칸을 밀어 빈 자리에 0을 가산한 240을 인견합니다.",
-        step3Result: "최심부 공식 240 ÷ 6 이 완성되어 몫 에너지 40이 완전 분사됩니다.",
-        dividendOriginal: "2.4",
-        divisorOriginal: "0.06",
-        dividendShifted: "240",
-        divisorShifted: "6",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "1.2 ÷ 0.04",
-      dividend: "1.2",
-      divisor: "0.04",
-      correctAnswer: 30,
-      choices: [30, 3, 0.3, 300],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "분리자 0.04의 기준 복원을 위해 소수점 2칸 우향 기동을 행합니다.",
-        step2Move: "1.2 도 똑같이 2칸 우향으로 선로를 넓혀서 공란을 메우고 120이 세워집니다.",
-        step3Result: "조직식 120 ÷ 4 공습으로, 몫 지수 30이 정면에 표출됩니다.",
-        dividendOriginal: "1.2",
-        divisorOriginal: "0.04",
-        dividendShifted: "120",
-        divisorShifted: "4",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "0.18 ÷ 0.9",
-      dividend: "0.18",
-      divisor: "0.9",
-      correctAnswer: 0.2,
-      choices: [0.2, 2, 0.02, 20],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나누는 중급핵 0.9를 위해 소수점을 오른쪽으로 1칸 밀쳐 조절합니다.",
-        step2Move: "동조 법칙으로 0.18에도 1칸만 소수 우향 도약을 행해 1.8로 한계 봉인합니다.",
-        step3Result: "1.8 ÷ 9 식에서 소수 눈금을 세밀히 맞추어 몫 0.2를 정안 구축합니다.",
-        dividendOriginal: "0.18",
-        divisorOriginal: "0.9",
-        dividendShifted: "1.8",
-        divisorShifted: "9",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.32 ÷ 0.8",
-      dividend: "0.32",
-      divisor: "0.8",
-      correctAnswer: 0.4,
-      choices: [0.4, 4, 0.04, 40],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나 나누는 무진 0.8을 위해 소수 영역 1칸을 우향 개척합니다.",
-        step2Move: "결의로 0.32 에 대응해서도 똑같이 1칸 우향 밀어 3.2 상태의 형세를 취합니다.",
-        step3Result: "최종 형상 3.2 ÷ 8 에 직면하여 몫 0.4를 정연 출력해 냅니다.",
-        dividendOriginal: "0.32",
-        divisorOriginal: "0.8",
-        dividendShifted: "3.2",
-        divisorShifted: "8",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "9 ÷ 1.8",
-      dividend: "9",
-      divisor: "1.8",
-      correctAnswer: 5,
-      choices: [5, 0.5, 50, 0.05],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나누는 자연수 보정 수호! 1.8의 소수 자리를 1칸 우전환합니다.",
-        step2Move: "9의 내수 지점에 0을 긴밀히 증설 기입하여 90의 형태를 고착합니다.",
-        step3Result: "90 ÷ 18 격돌식을 성립시켜 깔끔한 정수 몫 5를 타격 격파 상수화합니다.",
-        dividendOriginal: "9",
-        divisorOriginal: "1.8",
-        dividendShifted: "90",
-        divisorShifted: "18",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.3 ÷ 0.05",
-      dividend: "0.3",
-      divisor: "0.05",
-      correctAnswer: 6,
-      choices: [6, 0.6, 60, 0.06],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "0.05의 극단적인 자릿수 보강에 의해 우향 2칸 소수점을 천도합니다.",
-        step2Move: "이에 마수 0.3도 지지 않고 우향 2칸 평행 무빙하여 여유 칸에 0을 입힌 30을 생성합니다.",
-        step3Result: "30 ÷ 5 변성 로직이 안전 실현되어 몫 6이 무결히 산출됩니다.",
-        dividendOriginal: "0.3",
-        divisorOriginal: "0.05",
-        dividendShifted: "30",
-        divisorShifted: "5",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "0.6 ÷ 0.15",
-      dividend: "0.6",
-      divisor: "0.15",
-      correctAnswer: 4,
-      choices: [4, 0.4, 40, 0.04],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "0.15에 잠긴 결계를 걷어내려 소수점을 명확히 오른쪽 2칸 평행 배치시킵니다.",
-        step2Move: "대등 관계인 0.6 역시 똑같이 우향으로 2칸 밀려 60의 자연 상태를 형성시킵니다.",
-        step3Result: "60 ÷ 15 비상의 결계 해제로 최강 마력량 4가 추출 완료됩니다.",
-        dividendOriginal: "0.6",
-        divisorOriginal: "0.15",
-        dividendShifted: "60",
-        divisorShifted: "15",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "1.5 ÷ 0.05",
-      dividend: "1.5",
-      divisor: "0.05",
-      correctAnswer: 30,
-      choices: [30, 3, 0.3, 300],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나누는 실효핵 0.05의 격차를 극복하기 위해 우향 2눈금 연성 기동 시킵니다.",
-        step2Move: "1.5에도 동시 적용되어 우측으로 2칸 소수 정밀 비행하여 150 형태를 세웁니다.",
-        step3Result: "150 ÷ 5 쾌적 타격을 유발하여 정량 수화된 30의 에너지원이 생성됩니다.",
-        dividendOriginal: "1.5",
-        divisorOriginal: "0.05",
-        dividendShifted: "150",
-        divisorShifted: "5",
-        shiftAmount: 2
-      }
-    },
-    {
-      question: "0.28 ÷ 0.4",
-      dividend: "0.28",
-      divisor: "0.4",
-      correctAnswer: 0.7,
-      choices: [0.7, 7, 0.07, 70],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "적의 0.4 핵의 보전을 위해 소수점을 오른쪽으로 1격(1칸) 이동합니다.",
-        step2Move: "동궤에 전속하는 0.28 측도 1격 우측으로 전진 조율해 2.8로 압축시킵니다.",
-        step3Result: "2.8 ÷ 4 를 수월히 완료하여 눈금 보정 0.7을 최종 검출해 냅니다.",
-        dividendOriginal: "0.28",
-        divisorOriginal: "0.4",
-        dividendShifted: "2.8",
-        divisorShifted: "4",
-        shiftAmount: 1
-      }
-    },
-    {
-      question: "0.54 ÷ 0.6",
-      dividend: "0.54",
-      divisor: "0.6",
-      correctAnswer: 0.9,
-      choices: [0.9, 9, 0.09, 90],
-      type: 'BOSS',
-      explanationSteps: {
-        step1Inverse: "나누는 마법 장막인 0.6 의 평정을 위해 소수점의 1회 우향 타격을 넣습니다.",
-        step2Move: "동조하여 0.54 역시 1칸 우향으로 전선을 이동하여 5.4의 공격 정렬을 마칩니다.",
-        step3Result: "5.4 ÷ 6 타격에 맞춰서, 마력 집중 몫 0.9를 고밀도 결정화합니다.",
-        dividendOriginal: "0.54",
-        divisorOriginal: "0.6",
-        dividendShifted: "5.4",
-        divisorShifted: "6",
-        shiftAmount: 1
-      }
-    }
-  ]
-};
+// MathQuestion interface and MATH_POOL database are now loaded modularly from './mathPool' to support 100+ highly conceptual questions.
 
 interface Enemy {
   name: string;
@@ -1056,6 +219,7 @@ export default function App() {
   const [exp, setExp] = useState<number>(0);
   const [kcal, setKcal] = useState<number>(0);
   const [overallStage, setOverallStage] = useState<number>(1); // 5 stages total
+  const [timeLeft, setTimeLeft] = useState<number>(30); // 30 seconds count down limit
 
   // Monsters
   const [currentMonsterIndex, setCurrentMonsterIndex] = useState<number>(0);
@@ -1063,7 +227,7 @@ export default function App() {
   const [monsters, setMonsters] = useState<Enemy[]>([
     { name: "자릿수 왜곡 고블린", type: 'COMMON', hp: 100, maxHp: 100, desc: "신전 입구에 기생하며 수수점 첫째 자리를 어지럽히는 졸개 몬스터입니다.", portrait: "👹" },
     { name: "소수점 왜곡 사제 아라크", type: 'ELITE', hp: 100, maxHp: 100, desc: "비정칭 자릿수 왜곡 마법 가스를 살포해 모험가를 현혹시킵니다.", portrait: "🧙‍♂️" },
-    { name: "에테르 소수 파괴 코어신", type: 'BOSS', hp: 120, maxHp: 120, desc: "고대 상형 문자로 수립된 최강의 난제 엔진. 오직 정량 캐스팅만이 격파 가능합니다.", portrait: "👁️" }
+    { name: "에테르 소수 파괴 코어신", type: 'BOSS', hp: 100, maxHp: 100, desc: "고대 상형 문자로 수립된 최강의 난제 엔진. 오직 정량 캐스팅만이 격파 가능합니다.", portrait: "👁️" }
   ]);
   const activeMonster = monsters[currentMonsterIndex];
 
@@ -1261,6 +425,7 @@ export default function App() {
     setCastingProgress(0);
     setIsCasting(false);
     setActiveCastingPose('NONE');
+    setTimeLeft(30); // Reset timer to 30 for the new question
     setGameGuide("새로운 에테르 결계 발견! 알맞은 답을 가진 신전의 석조 동작을 실시간 유지하십시오.");
   };
 
@@ -1273,6 +438,7 @@ export default function App() {
     setOverallStage(1);
     setExp(0);
     setKcal(0);
+    setTimeLeft(30); // Initial 30 seconds set
     setMistakes([]);
     setAskedQuestions([]);
     setCombatLogs(["에테르 코어 가상 수조 가동... 제 1구역 제단의 적들과 격돌합니다!"]);
@@ -1311,6 +477,40 @@ export default function App() {
     return () => clearInterval(castingTimer);
   }, [isCasting, activeCastingPose]);
 
+  // 30 seconds countdown timer for active questions
+  useEffect(() => {
+    if (gameState !== 'PLAY') return;
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          // Time expired! Take penalty
+          audio.playWrong();
+          audio.playHit();
+          setPlayerHP(p => {
+            const nextL = Math.max(0, p - 15);
+            if (nextL <= 0) {
+              setGameState('GAMEOVER');
+              audio.playDefeat();
+            }
+            return nextL;
+          });
+          setDamagePopup({ text: `-15 시간 초과!`, isPlayer: true });
+          setCombatLogs(prevLogs => [
+            `⏰ [결계 시한 초과] 에테르 마력 고정 시간이 초과되어 몬스터가 15만큼 기습 타격했습니다! 정밀 계산을 서두르십시오.`,
+            ...prevLogs
+          ]);
+          setGameGuide("시간 초과! 괴물이 기습 타격을 입혔습니다. 다시 기운을 집중해 정답을 찾아보세요.");
+          // Reset the timer for the same question so the student can keep solving
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameState, activeQuestion]);
+
   // Evaluate success or wrong results
   const resolveCastedSpell = (castingPose: string) => {
     const pairedChoice = shuffledChoices.find(sc => sc.pose === castingPose);
@@ -1331,14 +531,14 @@ export default function App() {
 
       setShakingMonster(true);
       setPlayerActionEffect(castingPose);
-      setDamagePopup({ text: `-35 에테르 타격! (약점 관통)`, isPlayer: false });
+      setDamagePopup({ text: `-20 에테르 타격! (약점 관통)`, isPlayer: false });
 
       // Stat awards
-      setExp(x => x + 25);
-      const nextMonsterHP = Math.max(0, monsterHP - 35);
+      setExp(x => x + 20);
+      const nextMonsterHP = Math.max(0, monsterHP - 20);
       setMonsterHP(nextMonsterHP);
 
-      const combatMsg = `💥 [정화 완수] '${skillSpec.skillName}'(${skillSpec.element.split(' ')[0]}) 정량 방출 성공! 정답 소수 배정인 '${pairedChoice.value}' 수치를 정수화 관철해 몬스터 체력을 35 파괴했습니다!`;
+      const combatMsg = `💥 [정화 완수] '${skillSpec.skillName}'(${skillSpec.element.split(' ')[0]}) 정량 방출 성공! 정답 소수 배정인 '${pairedChoice.value}' 수치를 정수화 관철해 몬스터 체력을 20 파괴했습니다! (단계 클리어를 위해 총 5개의 문제가 정밀 필요합니다)`;
       setCombatLogs(prev => [combatMsg, ...prev]);
 
       if (nextMonsterHP <= 0) {
@@ -1422,7 +622,7 @@ export default function App() {
       setCombatLogs(prev => [`⚔️ 신전 제 2계층 진입 완료! 새로운 수식 사제 '${monsters[1].name}'가 군림합니다.`, ...prev]);
     } else if (nextStage === 5) {
       setCurrentMonsterIndex(2);
-      setMonsterHP(120);
+      setMonsterHP(100);
       setCombatLogs(prev => [`🔥 핵심 수조 성전 도달! 최종 파괴 코어신 '${monsters[2].name}'가 가상의 포화를 개시합니다!`, ...prev]);
     } else {
       setMonsterHP(100);
@@ -1939,6 +1139,13 @@ export default function App() {
               <div className="absolute top-3 left-4 bg-slate-950/80 px-2 py-1 rounded text-[10px] text-slate-400 uppercase tracking-widest border border-indigo-950 flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 Raid Dimension Stage: {overallStage}/5
+              </div>
+
+              {/* Dynamic Countdown Timer */}
+              <div className="absolute top-3 right-4 bg-slate-950/80 px-2.5 py-1 rounded text-[10px] uppercase tracking-widest border border-indigo-950 flex items-center gap-1.5 backdrop-blur">
+                <span className={`h-1.5 w-1.5 rounded-full ${timeLeft <= 10 ? 'bg-rose-500 animate-ping' : timeLeft <= 20 ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                <span className="text-slate-400">제한시간:</span>
+                <span className={`font-black text-xs ${timeLeft <= 10 ? 'text-rose-400 animate-pulse' : timeLeft <= 20 ? 'text-amber-400' : 'text-[#06fa9d]'}`}>{timeLeft}초</span>
               </div>
 
               {/* ACTORS DECK */}
