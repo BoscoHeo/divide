@@ -1380,9 +1380,11 @@ export default function App() {
           audio.playDefeat();
         }, 1000);
       } else {
-        setGameGuide("기의 흐름이 왜곡으로 흐트려졌습니다! 다시금 소수 나눗셈의 비례를 정정 가늠해야 합니다.");
+        setGameGuide("틀렸습니다! 우측 상단의 '도움말 해설' 또는 결계 패턴을 복기하고, 동일한 문제의 올바른 정답 동작을 취해 보세요.");
         setTimeout(() => {
-          loadQuestionForStage(overallStage);
+          setCastingProgress(0);
+          setIsCasting(false);
+          setActiveCastingPose('NONE');
         }, 1400);
       }
     }
