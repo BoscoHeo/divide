@@ -1,0 +1,10 @@
+{
+  "name": "수학전사: 에테르 코어의 수호자",
+  "description": "소수의 나눗셈 수학 연산과 전신 체감형 피트니스 운동이 결합된 에듀테인먼트 턴제 RPG",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
